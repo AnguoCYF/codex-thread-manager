@@ -6,3 +6,7 @@
 .venv/
 venv/
 *.bak
+
+dist/
+build/
+*.spec

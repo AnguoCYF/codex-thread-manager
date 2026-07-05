@@ -9,7 +9,7 @@ With GUI: refresh, restart Codex, inspect results.
 Usage: python codex_thread_manager.py
 Requires: Python 3.8+, tkinter (built-in)
 """
-import os, sys, json, shutil, sqlite3, datetime, subprocess, time
+import os, sys, json, shutil, sqlite3, datetime, subprocess, time, platform
 from pathlib import Path
 try:
     import tkinter as tk
@@ -81,22 +81,74 @@ def get_rollout_size(p):
     except: return 0
 
 def find_codex_processes():
-    try:
-        out=subprocess.run(["wmic","process","where","name like '%odex%'","get","ProcessId,Name","/format:csv"],capture_output=True,text=True,timeout=15).stdout
-    except: return []
-    procs=[]
-    for line in out.strip().splitlines():
-        line=line.strip()
-        if not line or "Node," in line: continue
-        parts=[p.strip() for p in line.split(",")]
-        if len(parts)<3: continue
-        name=parts[1]; pid_s=parts[2]
-        if "codex" not in name.lower(): continue
-        try: pid=int(pid_s)
-        except: continue
-        procs.append((pid,name))
-    return procs
+    """Detect running Codex processes. Cross-platform: Windows uses wmic, Linux uses pgrep."""
+    if platform.system()=="Windows":
+        try:
+            out=subprocess.run(["wmic","process","where","name like '%odex%'","get","ProcessId,Name","/format:csv"],capture_output=True,text=True,timeout=15).stdout
+        except Exception: return []
+        procs=[]
+        for line in out.strip().splitlines():
+            line=line.strip()
+            if not line or "Node," in line: continue
+            parts=[p.strip() for p in line.split(",")]
+            if len(parts)<3: continue
+            name=parts[1]; pid_s=parts[2]
+            if "codex" not in name.lower(): continue
+            try: pid=int(pid_s)
+            except: continue
+            procs.append((pid,name))
+        return procs
+    else:
+        try:
+            out=subprocess.run(["pgrep","-a","-f","codex"],capture_output=True,text=True,timeout=10).stdout
+        except Exception: return []
+        procs=[]
+        for line in out.strip().splitlines():
+            line=line.strip()
+            if not line: continue
+            parts=line.split(None,1)
+            if len(parts)<2: continue
+            try: pid=int(parts[0])
+            except: continue
+            name=parts[1].split()[0] if parts[1].split() else parts[1]
+            if "codex" not in name.lower(): continue
+            procs.append((pid,name))
+        return procs
 
+
+def kill_codex():
+    procs=find_codex_processes()
+    if not procs: return False,"No running Codex process found"
+    k=0
+    for pid,name in procs:
+        try:
+            if platform.system()=="Windows":
+                subprocess.run(["taskkill","/F","/PID",str(pid)],capture_output=True,timeout=10)
+            else:
+                import signal
+                os.kill(pid, signal.SIGTERM)
+            k+=1
+        except Exception: pass
+    return True, f"Terminated {k}/{len(procs)} Codex processes"
+
+def find_codex_exe():
+    """Locate Codex executable (Windows only; Linux users relaunch manually)."""
+    if platform.system()!="Windows": return None
+    try:
+        out=subprocess.run(["wmic","process","where","name='Codex.exe'","get","ExecutablePath"],capture_output=True,text=True,timeout=10).stdout
+        for line in out.strip().splitlines():
+            line=line.strip()
+            if line.endswith("Codex.exe") and "WindowsApps" in line: return line
+    except Exception: pass
+    return None
+
+def terminate_codex(parent):
+    if not messagebox.askyesno("Terminate Codex","Terminate all running Codex processes?\n\nUse this before deleting, then relaunch Codex manually afterwards."): return
+    ok,msg=kill_codex(); parent.status.set(msg); parent.update_idletasks()
+    if ok: time.sleep(1)
+    procs=find_codex_processes()
+    if procs: parent.status.set(f"Terminated, but {len(procs)} still running - close manually")
+    else: parent.status.set("Codex fully terminated. Relaunch manually when ready.")
 
 def kill_codex():
     procs=find_codex_processes()

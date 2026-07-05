@@ -1,121 +1,126 @@
 ﻿# Codex Thread Manager
 
-一个纯本地、可视化、零后端依赖的 **OpenAI Codex 桌面版对话管理工具**。
+A pure-local, GUI, zero-backend visual tool to manage OpenAI Codex desktop conversations. Scan `~/.codex`, list every thread from `state_5.sqlite`, search, inspect details, and delete with three tiers: **archive only / database delete / full wipe (4 traces)**. Includes a "Terminate Codex" button to close all Codex processes before deleting.
 
-扫描 `~/.codex` 目录，读取 `state_5.sqlite` 中的全部对话线程，在 GUI 中列表、搜索、查看详情，并支持三档删除：**仅归档 / 数据库删除 / 完整擦除（4 处痕迹）**。提供 "Terminate Codex" 一键关闭所有 Codex 进程（删除前必须先关 Codex，否则修改会被覆盖）。
-
-A pure-local, GUI, zero-backend visual tool to manage OpenAI Codex desktop conversations.
+**Languages:** [English](README.md) | [中文](README.zh-CN.md)
 
 ---
 
-## 功能特性
+## Features
 
-- **自动扫描** `~/.codex`，读取 `state_5.sqlite` threads 表与 `.codex-global-state.json`
-- **可视化列表**：创建时间 / 标题 / 线程 ID / 活跃或归档 / 本机是否可达 / rollout 文件大小
-- **勾选批量操作**：点 "Sel" 列单元格切换单个勾选，点表头全选/反选
-- **搜索过滤**：按标题或线程 ID 实时过滤
-- **详情面板**：cwd、rollout 路径、outputs 目录、工作区根提示
-- **三档删除模式**：
-  | 模式 | 操作 | 可恢复 |
+- **Auto-scan** `~/.codex`: reads `state_5.sqlite` threads table and `.codex-global-state.json`
+- **Visual list**: created time / title / thread ID / active or archived / accessible on this machine / rollout file size
+- **Batch selection**: click the "Sel" column cell to toggle a row, click the column header to select/deselect all
+- **Live search** filter by title or thread ID
+- **Detail panel**: cwd, rollout path, outputs dir, workspace root hint
+- **Three delete modes**:
+  | Mode | Action | Restorable |
   |---|---|---|
-  | **仅归档（软删）** | 标记 `archived=1`，rollout 不动 | 是 |
-  | **数据库删除** | 删 state_5 行 + 清全局状态 5 字段，rollout 保留 | 是（手动恢复） |
-  | **完整擦除（4 处痕迹）** | DB 行 + 全局状态 + rollout 文件 + outputs 目录 + 运行日志 | **否** |
-- **Terminate Codex**：一键检测并终止全部 Codex 进程（删除前的安全步骤）
-- **删除前自动备份** DB 与全局状态到同目录 `.bak-del-*` 文件
-- **5 秒倒计时确认**，避免误触；若检测到 Codex 仍运行会额外警告
-- 全程**读写本机文件**，不联网、不上传、不依赖任何第三方服务
+  | **Archive only (soft)** | Mark `archived=1`, rollout untouched | Yes |
+  | **Database delete** | Delete state_5 row + clear 5 global-state fields, rollout kept | Yes (manually) |
+  | **Full wipe (4 traces)** | DB row + global state + rollout file + outputs dirs + run logs | **No** |
+- **Terminate Codex**: detect and kill all Codex processes in one click (required before deleting, otherwise Codex overwrites your changes on exit)
+- **Auto-backup** DB and global state to `.bak-del-*` files before destructive ops
+- **5-second countdown** confirmation to prevent misclicks; extra warning if Codex is still running
+- Reads/writes local files only. No network, no upload, no third-party services
+- **Cross-platform**: Windows (wmic/taskkill) and Linux (pgrep/SIGTERM)
 
 ---
 
-## 快速开始
+## Requirements
 
-### 环境要求
+- Windows 10/11 or Linux (X11)
+- Python 3.8+ with tkinter (default in official installers; on Debian/Ubuntu: `sudo apt install python3-tk`)
 
-- Windows 10/11
-- Python 3.8+（需包含 tkinter，官方安装包默认勾选即可）
-
-### 运行
+## Run
 
 ```powershell
 python codex_thread_manager.py
 ```
 
-弹出 GUI 后：
-1. 左侧列表自动加载全部线程
-2. 点 "Sel" 列单元格勾选要操作的线程
-3. 右侧选择删除模式
-4. 点 **Delete** → 确认对话框（5 秒倒计时）→ 确认
-5. 点 **Terminate Codex** 先关闭 Codex，再删除更安全
-6. 点 **Refresh** 重新加载列表查看效果
+After the GUI opens:
+1. The left panel auto-loads all threads
+2. Click a cell in the "Sel" column to tick rows you want to operate on
+3. Pick a delete mode on the right
+4. Click **Delete** → confirm dialog (5s countdown) → confirm
+5. Click **Terminate Codex** before deleting for safety
+6. Click **Refresh** to reload the list and see the result
 
 ---
 
-## Codex 在本机存了什么
+## What Codex stores locally
 
-每个对话（thread）由 4 处痕迹共同构成：
+Each conversation (thread) leaves 4 traces:
 
-1. **线程元数据库** `state_5.sqlite` `threads` 表
-2. **对话内容日志** `sessions/<年>/<月>/<日>/rollout-*.jsonl`（归档后移到 `archived_sessions/`）
-3. **全局状态** `.codex-global-state.json`，含 5 个引用该线程 ID 的字段：
+1. **Thread metadata** in `state_5.sqlite` `threads` table
+2. **Conversation log** at `sessions/<year>/<month>/<day>/rollout-*.jsonl` (moved to `archived_sessions/` when archived)
+3. **Global state** in `.codex-global-state.json`, with 5 fields referencing the thread ID:
    - `projectless-thread-ids`
    - `thread-workspace-root-hints`
    - `thread-projectless-output-directories`
    - `pinned-thread-ids`
    - `thread-writable-roots`
-4. **项目目录** threads.cwd 指向的代码/文档，projectless 线程还有 `outputs/` 目录
+4. **Project directory** pointed to by `threads.cwd`; projectless threads also have an `outputs/` dir
 
-Codex 自带的归档只做 `archived=1` + 移动 rollout 文件，不做物理删除。"完整擦除" 模式清理以上 4 处全部痕迹。
-
----
-
-## 安全建议
-
-- **删除前先 Terminate Codex**：Codex 退出时会写回全局状态，若你在运行中删除，覆盖会丢掉你的修改
-- 完整擦除前会自动备份 `state_5.sqlite` 与 `.codex-global-state.json` 到同目录 `.bak-del-*` 文件，仍可手动恢复
-- OneDrive 同步盘内的项目目录删除会被 OneDrive 同步到其他机器，删前请确认
+Codex's built-in archive only flips `archived=1` and moves the rollout. "Full wipe" cleans all 4 traces.
 
 ---
 
-## 测试
+## Safety
 
-项目附带三套测试，全部不碰真实数据：
+- **Terminate Codex before deleting**: Codex writes back global state on exit and will overwrite your changes if it's running
+- Full-wipe auto-backs-up `state_5.sqlite` and `.codex-global-state.json` to `.bak-del-*` in the same dir (manually restorable)
+- Deleting a project dir inside an OneDrive sync folder propagates the deletion to other machines via OneDrive. Confirm before deleting
+
+---
+
+## Tests
+
+Three suites, none touch real data:
 
 ```powershell
-python tests\test_unit.py   # 38 项单元测试
-python tests\test_gui.py    # 24 项 GUI 交互测试（自动隐藏窗口）
-python tests\test_e2e.py    # 15 项三档删除端到端测试（临时 mock CODEX_HOME）
+python tests/test_unit.py    # 38 unit tests
+python tests/test_gui.py     # 24 GUI interaction tests (window hidden)
+python tests/test_e2e.py     # 15 end-to-end three-tier delete tests (temp mock CODEX_HOME)
 ```
 
-当前状态：**77 项全 PASS**。
+Current status: **77 PASS**.
 
 ---
 
-## 文件说明
+## Releases
 
-| 文件 | 说明 |
+Prebuilt binaries are on the [Releases page](../../releases):
+
+- `codex-thread-manager-windows.exe` — standalone Windows executable, no Python needed
+- `codex-thread-manager-linux` — standalone Linux binary (built on a Debian-based system)
+
+## Build from source
+
+```powershell
+pip install pyinstaller
+pyinstaller --onefile --windowed --name codex-thread-manager codex_thread_manager.py
+```
+
+---
+
+## Files
+
+| File | Purpose |
 |---|---|
-| `codex_thread_manager.py` | 主程序，单文件，无外部依赖 |
-| `tests/test_unit.py` | 单元测试（模块导入、函数、真实 .codex 只读校验） |
-| `tests/test_gui.py` | GUI 交互测试（勾选、搜索、详情、模式切换） |
-| `tests/test_e2e.py` | 端到端三档删除逻辑测试（临时 mock，不碰真实数据） |
+| `codex_thread_manager.py` | Main program, single file, no external deps |
+| `tests/test_unit.py` | Unit tests (module import, functions, read-only real .codex, mock full delete) |
+| `tests/test_gui.py` | GUI interaction tests (selection, search, detail, mode switch) |
+| `tests/test_e2e.py` | End-to-end three-tier delete logic (temp mock, never touches real data) |
 | `LICENSE` | MIT |
 
 ---
 
-## 路径与进程检测说明
+## Known behavior
 
-- 进程检测用 `wmic process where "name like '%odex%'"`，约 160ms 返回，兼容多 Codex 进程
-- 路径自动归一化 `\\?\` 前缀，兼容 Windows 长路径
-
----
-
-## 已知行为
-
-- 侧边栏线程列表的权威来源是 `state_5.sqlite`，`session_index.jsonl` 可能滞后或乱码，本工具以数据库为准
-- 若你使用 [cc-switch](https://github.com/farion1231/cc-switch) 的 "统一 Codex 会话历史" 功能，线程数会随之变化，本工具实时读取所以无影响
-
----
+- The sidebar's authoritative source is `state_5.sqlite`; `session_index.jsonl` may lag or be garbled, this tool trusts the DB
+- If you use [cc-switch](https://github.com/farion1231/cc-switch)'s "Unify Codex session history" toggle, thread count changes accordingly; this tool reads live so it stays correct
+- Process detection uses `wmic` on Windows (~160ms) and `pgrep` on Linux
 
 ## License
 
