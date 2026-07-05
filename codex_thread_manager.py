@@ -398,4 +398,10 @@ class CodexThreadManager:
         if mode=="full": parts+=[f"Rollout files {df}",f"Outputs dirs {dd}",f"Run logs {dl}"]
         if log: parts.append(" ; ".join(log))
         return " , ".join(parts)
+
+def main():
+    root=tk.Tk()
+    CodexThreadManager(root)
+    root.mainloop()
+
 if __name__=="__main__": main()
